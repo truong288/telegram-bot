@@ -212,7 +212,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == '__main__':
     threading.Thread(target=run_flask).start()
-    TOKEN = os.environ.get("BOT_TOKEN")
+    TOKEN = "7243590811:AAGY-Py_DP_561bc2DsPjFKkZTuvp...."
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("startgame", start_game))
