@@ -173,7 +173,7 @@ async def start_turn_timer(context):
 async def turn_timer(context):
     global players, current_player_index
     try:
-        await asyncio.sleep()
+        await asyncio.sleep(60)
         user_id = players[current_player_index]
         chat = await context.bot.get_chat(user_id)
         mention = f"<a href='tg://user?id={user_id}'>@{chat.username or chat.first_name}</a>"
