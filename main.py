@@ -1,8 +1,12 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from flask import Flask
+import os
 import threading
 import asyncio
+from flask import Flask, request
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes,
+    filters
+)
 
 # Game state
 players = []
@@ -13,17 +17,10 @@ in_game = False
 waiting_for_phrase = False
 turn_timeout_task = None
 
-# Flask app to keep server alive
+# Flask app
 flask_app = Flask(__name__)
-
-
-@flask_app.route('/')
-def home():
-    return "Bot is alive!"
-
-
-def run_flask():
-    flask_app.run(host='0.0.0.0', port=8080)
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 
 
 def reset_game():
@@ -62,8 +59,7 @@ async def join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def begin_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global current_player_index, waiting_for_phrase
     if len(players) < 2:
-        await update.message.reply_text(
-            "❗ Cần ít nhất 2 người chơi để bắt đầu.")
+        await update.message.reply_text("❗ Cần ít nhất 2 người chơi để bắt đầu.")
         return
 
     waiting_for_phrase = True
@@ -90,9 +86,7 @@ async def play_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     words = text.split()
     if len(words) != 2:
-        await eliminate_player(update,
-                               context,
-                               reason="Cụm từ phải gồm đúng 2 từ")
+        await eliminate_player(update, context, reason="Cụm từ phải gồm đúng 2 từ")
         return
 
     if waiting_for_phrase:
@@ -110,9 +104,7 @@ async def play_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if words[0] != current_phrase.split()[-1]:
-        await eliminate_player(update,
-                               context,
-                               reason="Từ đầu không khớp với từ cuối trước đó")
+        await eliminate_player(update, context, reason="Từ đầu không khớp với từ cuối trước đó")
         return
 
     if used_phrases.get(text, 0) >= 1:
@@ -127,8 +119,7 @@ async def play_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
         winner_id = players[0]
         chat = await context.bot.get_chat(winner_id)
         mention = f"<a href='tg://user?id={winner_id}'>@{chat.username or chat.first_name}</a>"
-        await update.message.reply_text(f"🏆 {mention} GIÀNH CHIẾN THẮNG!",
-                                        parse_mode="HTML")
+        await update.message.reply_text(f"🏆 {mention} GIÀNH CHIẾN THẮNG!", parse_mode="HTML")
         reset_game()
         return
 
@@ -144,8 +135,7 @@ async def play_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def eliminate_player(update, context, reason):
     global players, current_player_index
     user = update.effective_user
-    await update.message.reply_text(
-        f"❌ {user.first_name} bị loại! Lý do: {reason}")
+    await update.message.reply_text(f"❌ {user.first_name} bị loại! Lý do: {reason}")
     players.remove(user.id)
     if current_player_index >= len(players):
         current_player_index = 0
@@ -154,12 +144,10 @@ async def eliminate_player(update, context, reason):
         winner_id = players[0]
         chat = await context.bot.get_chat(winner_id)
         mention = f"<a href='tg://user?id={winner_id}'>@{chat.username or chat.first_name}</a>"
-        await update.message.reply_text(f"🏆 {mention} GIÀNH CHIẾN THẮNG!",
-                                        parse_mode="HTML")
+        await update.message.reply_text(f"🏆 {mention} GIÀNH CHIẾN THẮNG!", parse_mode="HTML")
         reset_game()
     else:
-        await update.message.reply_text(
-            f"Hiện còn lại {len(players)} người chơi.")
+        await update.message.reply_text(f"Hiện còn lại {len(players)} người chơi.")
         await start_turn_timer(context)
 
 
@@ -210,10 +198,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-if __name__ == '__main__':
-    threading.Thread(target=run_flask).start()
-    TOKEN = "7243590811:AAGY-Py_DP_561bc2DsPjFKkZTuvp7mSl0o"
-    app = ApplicationBuilder().token(TOKEN).build()
+# Tạo bot và webhook
+async def setup_webhook():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("startgame", start_game))
     app.add_handler(CommandHandler("join", join_game))
@@ -221,5 +208,22 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, play_word))
 
-    print("Bot is running...")
-    app.run_polling()
+    await app.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
+    flask_app.bot_app = app
+
+
+@flask_app.post('/webhook')
+async def webhook():
+    update = Update.de_json(request.get_json(force=True), flask_app.bot_app.bot)
+    await flask_app.bot_app.process_update(update)
+    return "ok"
+
+
+@flask_app.route('/')
+def home():
+    return "Bot is alive!"
+
+
+if __name__ == '__main__':
+    asyncio.run(setup_webhook())
+    flask_app.run(host="0.0.0.0", port=8080)
