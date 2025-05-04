@@ -173,7 +173,7 @@ async def start_turn_timer(context):
 async def turn_timer(context):
     global players, current_player_index
     try:
-        await asyncio.sleep(30)
+        await asyncio.sleep()
         user_id = players[current_player_index]
         chat = await context.bot.get_chat(user_id)
         mention = f"<a href='tg://user?id={user_id}'>@{chat.username or chat.first_name}</a>"
@@ -212,7 +212,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == '__main__':
     threading.Thread(target=run_flask).start()
-    TOKEN = "7243590811:AAGY-Py_DP_561bc2DsPjFKkZTuvp...."
+    TOKEN = "7243590811:AAGY-Py_DP_561bc2DsPjFKkZTuvp7mSl0o"
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("startgame", start_game))
